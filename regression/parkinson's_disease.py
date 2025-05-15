@@ -29,7 +29,7 @@ from sklearn.linear_model import Lasso
 
 
 # Reading Data From CSV File
-data=pd.read_csv(r'c:\Users\11abd\Downloads\parkinsons_disease_data_reg.csv')
+data=pd.read_csv("dataset/parkinsons_disease_data_reg.csv")
 
 """# **Exploring Data :-->**"""
 
