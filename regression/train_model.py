@@ -1,4 +1,3 @@
-
 # For Numirecal Functions
 import numpy as np
 # For dataFrame Functions
@@ -8,7 +7,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import ast
 from sklearn.model_selection import train_test_split
-
+import os
+import pickle
 
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
@@ -409,11 +409,27 @@ Y = data['UPDRS']
 
 X_train, X_test, y_train, y_test = train_test_split(data_x, Y, test_size = 0.3,shuffle=True,random_state=40)
 
+# Create models directory if it doesn't exist
+os.makedirs('models', exist_ok=True)
 
-def linear(X_train, y_train,X_test,y_test):
+def save_model(model, model_name, features, metrics_dict):
+    """
+    Save model and its metadata to a pickle file
+    """
+    model_data = {
+        'model': model,
+        'features': features,
+        'metrics': metrics_dict,
+        'feature_names': list(features.columns) if hasattr(features, 'columns') else None
+    }
+    
+    with open(f'models/{model_name}.pkl', 'wb') as f:
+        pickle.dump(model_data, f)
+    print(f"Saved {model_name} model to models/{model_name}.pkl")
+
+def linear(X_train, y_train, X_test, y_test):
     model = LinearRegression()
     model.fit(X_train, y_train)
-
 
     # Making predictions on the test set
     y_pred = model.predict(X_test)
@@ -421,20 +437,28 @@ def linear(X_train, y_train,X_test,y_test):
 
     # Evaluating the model
     mse = mean_squared_error(y_test, y_pred)
-    #accuracy = accuracy_score(y_test, y_pred)
+    r2_test = metrics.r2_score(y_test, y_pred)
+    r2_train = metrics.r2_score(y_train, y_pred_train)
+    
     print("linear regression:")
     print("MSE: ", mse)
-    print("r2_score test:",metrics.r2_score(y_test,y_pred))
-    print("r2_score train:",metrics.r2_score(y_train,y_pred_train))
+    print("r2_score test:", r2_test)
+    print("r2_score train:", r2_train)
 
+    # Save the model
+    metrics_dict = {
+        'mse': mse,
+        'r2_score_test': r2_test,
+        'r2_score_train': r2_train
+    }
+    save_model(model, 'linear_regression', X_train, metrics_dict)
 
     return mse
 
 LR = linear(X_train, y_train , X_test, y_test)
 
 
-def poly(degree , X_train , y_train , X_test , y_test):
-
+def poly(degree, X_train, y_train, X_test, y_test):
     poly_features = PolynomialFeatures(degree)
     X_train_poly = poly_features.fit_transform(X_train)
 
@@ -443,17 +467,32 @@ def poly(degree , X_train , y_train , X_test , y_test):
 
     # predicting on training data-set
     y_train_predicted = poly_model.predict(X_train_poly)
-    ypred=poly_model.predict(poly_features.transform(X_test))
-
-
-    # predicting on test data-set
     y_pred = poly_model.predict(poly_features.fit_transform(X_test))
 
     mse = mean_squared_error(y_test, y_pred)
+    r2_test = metrics.r2_score(y_test, y_pred)
+    r2_train = metrics.r2_score(y_train, y_train_predicted)
+    
     print("Polynomial regression:")
     print("MSE: ", mse)
-    print("r2_score test:",metrics.r2_score(y_test,y_pred))
-    print("r2_score train:",metrics.r2_score(y_train,y_train_predicted))
+    print("r2_score test:", r2_test)
+    print("r2_score train:", r2_train)
+
+    # Save the model
+    model_data = {
+        'model': poly_model,
+        'poly_features': poly_features,
+        'metrics': {
+            'mse': mse,
+            'r2_score_test': r2_test,
+            'r2_score_train': r2_train,
+            'degree': degree
+        }
+    }
+    with open(f'models/polynomial_regression_deg{degree}.pkl', 'wb') as f:
+        pickle.dump(model_data, f)
+    print(f"Saved polynomial regression model (degree {degree}) to models/polynomial_regression_deg{degree}.pkl")
+    
     return mse
 
 poly(3, X_train, y_train , X_test, y_test)
@@ -480,7 +519,15 @@ print("MSE:",metrics.mean_squared_error(y_test,y_pred))
 print("r2_score_test:",metrics.r2_score(y_test,y_pred))
 print("r2_score_train:",metrics.r2_score(y_train,y_train_pred))
 
+# Save Random Forest model
+metrics_dict = {
+    'mse': metrics.mean_squared_error(y_test, y_pred),
+    'r2_score_test': metrics.r2_score(y_test, y_pred),
+    'r2_score_train': metrics.r2_score(y_train, y_train_pred)
+}
+save_model(rf_regressor, 'random_forest', X_train, metrics_dict)
 
+# Ridge Regression
 ridge_model = Ridge(alpha=1.0)  # alpha = penalty strength
 ridge_model.fit(X_train, y_train)
 
@@ -492,7 +539,16 @@ print("MSE:", round(metrics.mean_squared_error(y_test, y_pred), 4))
 print("r2_score_test:", round(metrics.r2_score(y_test, y_pred), 4))
 print("r2_score_train:", round(metrics.r2_score(y_train, y_train_pred), 4))
 
+# Save Ridge model
+metrics_dict = {
+    'mse': metrics.mean_squared_error(y_test, y_pred),
+    'r2_score_test': metrics.r2_score(y_test, y_pred),
+    'r2_score_train': metrics.r2_score(y_train, y_train_pred),
+    'alpha': 1.0
+}
+save_model(ridge_model, 'ridge_regression', X_train, metrics_dict)
 
+# Lasso Regression
 lasso_model = Lasso(alpha=0.1)  # alpha = penalty strength
 lasso_model.fit(X_train, y_train)
 
@@ -503,4 +559,13 @@ print("Lasso Regression:")
 print("MSE:", round(metrics.mean_squared_error(y_test, y_pred), 4))
 print("r2_score_test:", round(metrics.r2_score(y_test, y_pred), 4))
 print("r2_score_train:", round(metrics.r2_score(y_train, y_train_pred), 4))
+
+# Save Lasso model
+metrics_dict = {
+    'mse': metrics.mean_squared_error(y_test, y_pred),
+    'r2_score_test': metrics.r2_score(y_test, y_pred),
+    'r2_score_train': metrics.r2_score(y_train, y_train_pred),
+    'alpha': 0.1
+}
+save_model(lasso_model, 'lasso_regression', X_train, metrics_dict)
 
