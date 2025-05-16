@@ -33,20 +33,56 @@ def expand_dict_column(df, column):
     try:
         # Convert string representation of dict to actual dict
         df[column] = df[column].apply(ast.literal_eval)
-        # Get all unique keys
-        all_keys = set()
-        for d in df[column].dropna():
-            all_keys.update(d.keys())
         
-        # Create binary columns
-        for key in all_keys:
-            col_name = f"{column}_{key}"
-            df[col_name] = df[column].apply(lambda x: 1 if isinstance(x, dict) and x.get(key) == 'Yes' else 0)
+        # Define expected keys for each dictionary column
+        expected_keys = {
+            'MedicalHistory': ['FamilyHistoryParkinsons', 'TraumaticBrainInjury', 'Hypertension', 
+                             'Diabetes', 'Depression', 'Stroke'],
+            'Symptoms': ['Tremor', 'Rigidity', 'Bradykinesia', 'PosturalInstability',
+                        'SpeechProblems', 'SleepDisorders', 'Constipation']
+        }
+        
+        # Create binary columns for expected keys
+        if column in expected_keys:
+            for key in expected_keys[column]:
+                col_name = key
+                df[col_name] = df[column].apply(lambda x: 1 if isinstance(x, dict) and x.get(key) == 'Yes' else 0)
         
         # Drop original column
         df = df.drop(columns=[column])
     except Exception as e:
         logging.warning(f"Error expanding column {column}: {str(e)}")
+    return df
+
+def create_categorical_features(df):
+    """Create standardized categorical features"""
+    # Create specific dummy variables for Gender
+    df['Gender_Male'] = (df['Gender'] == 'Male').astype(int)
+    
+    # Create specific dummy variables for Ethnicity
+    ethnicity_mapping = {
+        'Asian': 'Ethnicity_Asian',
+        'Caucasian': 'Ethnicity_Caucasian'
+    }
+    for eth, col_name in ethnicity_mapping.items():
+        df[col_name] = (df['Ethnicity'] == eth).astype(int)
+    df['Ethnicity_Other'] = (~df['Ethnicity'].isin(['Asian', 'Caucasian'])).astype(int)
+    
+    # Create specific dummy variables for EducationLevel
+    education_mapping = {
+        'High School': 'EducationLevel_High School',
+        'Higher': 'EducationLevel_Higher'
+    }
+    for edu, col_name in education_mapping.items():
+        df[col_name] = (df['EducationLevel'] == edu).astype(int)
+    df['EducationLevel_nan'] = (df['EducationLevel'] == 'Unknown').astype(int)
+    
+    # Create specific dummy variable for Smoking
+    df['Smoking_Yes'] = (df['Smoking'] == 'Yes').astype(int)
+    
+    # Drop original categorical columns
+    df = df.drop(columns=['Gender', 'Ethnicity', 'EducationLevel', 'Smoking'])
+    
     return df
 
 def load_and_preprocess_data():
@@ -65,14 +101,17 @@ def load_and_preprocess_data():
         for col in categorical_columns:
             df[col] = df[col].fillna('Unknown')
         
+        # Create standardized categorical features
+        df = create_categorical_features(df)
+        
         # Expand dictionary columns
         df = expand_dict_column(df, 'MedicalHistory')
         df = expand_dict_column(df, 'Symptoms')
         
         # Fill missing numerical values with median
         numerical_columns = df.select_dtypes(include=[np.number]).columns
-        for col in numerical_columns:
-            df[col] = df[col].fillna(df[col].median())
+        medians = df[numerical_columns].median()
+        df[numerical_columns] = df[numerical_columns].fillna(medians)
         
         # Split features and target
         X = df.drop(['Diagnosis', 'PatientID', 'DoctorInCharge'], axis=1)
@@ -81,53 +120,20 @@ def load_and_preprocess_data():
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         
-        return X_train, X_test, y_train, y_test, X.columns.tolist()
+        return X_train, X_test, y_train, y_test, X.columns.tolist(), medians
     
     except Exception as e:
         logging.error(f"Error during data loading and preprocessing: {str(e)}")
-        raise
-
-def create_preprocessor(X_train):
-    """Create a preprocessor for the features"""
-    try:
-        # Identify numeric and categorical columns
-        numeric_features = X_train.select_dtypes(include=[np.number]).columns
-        categorical_features = X_train.select_dtypes(exclude=[np.number]).columns
-        
-        # Create preprocessing steps for both numeric and categorical features
-        numeric_transformer = StandardScaler()
-        categorical_transformer = OneHotEncoder(drop='first', sparse_output=False, handle_unknown='ignore')
-        
-        # Combine preprocessing steps
-        preprocessor = ColumnTransformer(
-            transformers=[
-                ('num', numeric_transformer, numeric_features),
-                ('cat', categorical_transformer, categorical_features)
-            ])
-        
-        return preprocessor
-    
-    except Exception as e:
-        logging.error(f"Error creating preprocessor: {str(e)}")
         raise
 
 def train_model():
     """Train the classification model"""
     try:
         # Load and preprocess data
-        X_train, X_test, y_train, y_test, feature_names = load_and_preprocess_data()
+        X_train, X_test, y_train, y_test, feature_names, medians = load_and_preprocess_data()
         
-        # Create and fit preprocessor
-        preprocessor = create_preprocessor(X_train)
-        
-        # Create pipeline
-        clf = Pipeline([
-            ('preprocessor', preprocessor),
-            ('classifier', RandomForestClassifier(n_estimators=100, random_state=42))
-        ])
-        
-        # Train model
-        logging.info("Training model...")
+        # Create and train model
+        clf = RandomForestClassifier(n_estimators=100, random_state=42)
         clf.fit(X_train, y_train)
         
         # Evaluate model
@@ -145,13 +151,15 @@ def train_model():
         model_data = {
             'model': clf,
             'feature_names': feature_names,
-            'accuracy': accuracy
+            'accuracy': accuracy,
+            'numerical_medians': medians,
+            'expected_columns': feature_names
         }
         
         with open('models/classification_model.pkl', 'wb') as f:
             pickle.dump(model_data, f)
         
-        logging.info("Model saved successfully")
+        logging.info("Model and preprocessing information saved successfully")
         
         return clf, accuracy
     
