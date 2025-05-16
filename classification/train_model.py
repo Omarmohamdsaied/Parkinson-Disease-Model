@@ -90,10 +90,10 @@ def load_and_preprocess_data():
     logging.info("Loading and preprocessing data...")
     try:
         # Load data
-        df = pd.read_csv('../data/classification_data.csv')
+        df = pd.read_csv('dataset/parkinsons_disease_data_cls.csv')
         
         # Convert WeeklyPhysicalActivity to hours
-        df['WeeklyPhysicalActivity'] = df['WeeklyPhysicalActivity (hr)'].apply(convert_time_to_hours)
+        df['WeeklyPhysicalActivity (hr)'] = df['WeeklyPhysicalActivity (hr)'].apply(convert_time_to_hours)
         df = df.drop(columns=['WeeklyPhysicalActivity (hr)'])
         
         # Handle categorical columns

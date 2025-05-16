@@ -13,7 +13,7 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.feature_selection import SelectKBest, f_regression
 from sklearn.ensemble import RandomForestRegressor
 
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, r2_score
 from sklearn import metrics
 
 from sklearn.preprocessing import PolynomialFeatures
@@ -101,7 +101,7 @@ def load_and_preprocess_data():
     logging.info("Loading and preprocessing data...")
     try:
         # Load data
-        df = pd.read_csv('../data/regression_data.csv')
+        df = pd.read_csv('dataset/parkinsons_disease_data_reg.csv')
         
         # Convert WeeklyPhysicalActivity to hours
         df['WeeklyPhysicalActivity (hr)'] = df['WeeklyPhysicalActivity (hr)'].apply(convert_time_to_hours)

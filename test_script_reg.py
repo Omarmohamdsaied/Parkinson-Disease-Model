@@ -13,6 +13,7 @@ logging.basicConfig(
 )
 
 REGRESSION_TARGET = "UPDRS"
+RND_NUM = 0
 
 def convert_time_to_hours(time_str):
     """Convert time string in format HH:MM to hours as float"""
@@ -115,9 +116,9 @@ def preprocess_regression_data(df, numerical_medians=None):
                 if col in numerical_medians:
                     df[col] = df[col].fillna(numerical_medians[col])
                 else:
-                    df[col] = df[col].fillna(df[col].median())
+                    df[col] = df[col].fillna(RND_NUM)
         else:
-            df[numerical_columns] = df[numerical_columns].fillna(df[numerical_columns].median())
+            df[numerical_columns] = df[numerical_columns].fillna(RND_NUM)
 
         # Drop unnecessary columns
         df = df.drop(['PatientID', 'DoctorInCharge'], axis=1)
